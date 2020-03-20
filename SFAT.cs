@@ -22,8 +22,6 @@ namespace ACNH_Dumper
         public uint HashMult;
         public List<SFATEntry> Entries;
 
-        public SFAT() { }
-
         public SFAT(BinaryReader br)
         {
             Magic = new string(br.ReadChars(4));

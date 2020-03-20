@@ -20,8 +20,6 @@ namespace ACNH_Dumper
         public ushort Unknown;
         public uint StringOffset;
 
-        public SFNT() { }
-
         public SFNT(BinaryReader br)
         {
             Magic = new string(br.ReadChars(4));

@@ -8,7 +8,7 @@ namespace ACNH_Dumper
     /// <summary>
     /// Simple (?) ARChive
     /// </summary>
-    public class SARC : IDisposable
+    public sealed class SARC : IDisposable
     {
         private const string Identifier = nameof(SARC);
 
@@ -36,61 +36,19 @@ namespace ACNH_Dumper
         private readonly BinaryReader br;
 
         /// <summary>
-        /// Initializes an empty <see cref="SARC"/>.
-        /// </summary>
-        public SARC()
-        {
-            SFAT = new SFAT();
-            SFNT = new SFNT();
-        }
-
-        /// <summary>
         /// Initializes a <see cref="SARC"/> from a file location.
         /// </summary>
         /// <param name="path"></param>
         public SARC(string path)
         {
-            SetFileInfo(path);
+            FileName = Path.GetFileNameWithoutExtension(path);
+            FilePath = Path.GetDirectoryName(path) ?? string.Empty;
+            Extension = Path.GetExtension(path);
 
             stream = File.OpenRead(path);
-            br = new BinaryReader(stream);
-            ReadSARC();
-            Valid = true;
-        }
 
-        /// <summary>
-        /// Initializes a <see cref="SARC"/> from a provided stream.
-        /// </summary>
-        /// <param name="fs"></param>
-        public SARC(Stream fs)
-        {
-            stream = fs;
             br = new BinaryReader(stream);
-            ReadSARC();
-            Valid = true;
-        }
-
-        /// <summary>
-        /// Initializes a <see cref="SARC"/> from a provided array.
-        /// </summary>
-        /// <param name="data"></param>
-        public SARC(byte[] data)
-        {
-            stream = new MemoryStream(data);
-            br = new BinaryReader(stream);
-            ReadSARC();
-            Valid = true;
-        }
-
-        /// <summary>
-        /// Reads the contents of the <see cref="SARC"/> header and file info tables.
-        /// </summary>
-        private void ReadSARC()
-        {
             Magic = new string(br.ReadChars(4));
-            if (!SigMatches)
-                return;
-
             HeaderSize = br.ReadUInt16();
             Endianness = br.ReadUInt16();
             FileSize = br.ReadUInt32();
@@ -99,17 +57,7 @@ namespace ACNH_Dumper
 
             SFAT = new SFAT(br);
             SFNT = new SFNT(br);
-        }
-
-        /// <summary>
-        /// Sets File information for the original file.
-        /// </summary>
-        /// <param name="path"></param>
-        public void SetFileInfo(string path)
-        {
-            FileName = Path.GetFileNameWithoutExtension(path);
-            FilePath = Path.GetDirectoryName(path);
-            Extension = Path.GetExtension(path);
+            Valid = true;
         }
 
         /// <summary>
@@ -127,29 +75,19 @@ namespace ACNH_Dumper
         public byte[] GetData(SFATEntry entry) => GetData(entry.FileDataStart, entry.FileDataLength);
 
         /// <summary>
-        /// Overwrites the entry data, assuming the size is the exact same.
-        /// </summary>
-        /// <param name="entry">File entry to overwrite</param>
-        /// <param name="data">Data to write</param>
-        public void SetData(SFATEntry entry, byte[] data)
-        {
-            if (data.Length != entry.FileDataLength)
-                throw new ArgumentException(nameof(data.Length));
-            SetData(entry.FileDataStart, data);
-        }
-
-        /// <summary>
         /// Exports the entry data for a given <see cref="SFATEntry"/> at a provided path with its assigned <see cref="SFATEntry"/> file name via the <see cref="SFNT"/> name table.
         /// </summary>
         /// <param name="t">Entry to export</param>
         /// <param name="outpath">Path to export to. If left null, will output to the <see cref="SARC"/> FilePath, if it is assigned.</param>
-        public string ExportFile(SFATEntry t, string outpath = null)
+        public string ExportFile(SFATEntry t, string? outpath = null)
         {
-            outpath = outpath ?? FilePath;
+            outpath ??= FilePath;
+            if (outpath == null)
+                throw new ArgumentNullException(nameof(outpath));
             byte[] data = GetData(t);
             string name = GetFileName(t);
 
-            string dir = Path.GetDirectoryName(name);
+            var dir = Path.GetDirectoryName(name);
             if (dir == null)
                 throw new ArgumentException(name);
             string location = Path.Combine(outpath, dir);
@@ -165,9 +103,9 @@ namespace ACNH_Dumper
         /// </summary>
         /// <param name="path">Path to create dump folder in</param>
         /// <param name="folder">Folder to dump contents to</param>
-        public IEnumerable<string> Dump(string path = null, string folder = null)
+        public IEnumerable<string> Dump(string? path = null, string? folder = null)
         {
-            path = path ?? FilePath;
+            path ??= FilePath;
             if (path == null)
                 throw new ArgumentNullException(nameof(path));
             if (File.Exists(path))
@@ -175,11 +113,10 @@ namespace ACNH_Dumper
             if (path == null)
                 throw new ArgumentNullException(nameof(path));
 
-            folder = folder ?? FileName ?? "sarc";
+            folder ??= FileName ?? "sarc";
             string dir = Path.Combine(path, folder);
 
             Directory.CreateDirectory(dir);
-
             foreach (SFATEntry t in SFAT.Entries)
                 yield return ExportFile(t, dir);
         }
@@ -196,28 +133,14 @@ namespace ACNH_Dumper
             return name;
         }
 
-        private void SetFileName(int offset, string value)
-        {
-            var str = value.Replace(Path.DirectorySeparatorChar, '/');
-            stream.Seek(SFNT.StringOffset, SeekOrigin.Begin);
-            stream.Seek((offset & 0x00FFFFFF) * 4, SeekOrigin.Current);
-            foreach (var b in str)
-                stream.WriteByte((byte)b);
-            stream.WriteByte((byte)'\0');
-        }
-
         private byte[] GetData(int offset, int length)
         {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
             byte[] fileBuffer = new byte[length];
             stream.Seek(offset + DataOffset, SeekOrigin.Begin);
             stream.Read(fileBuffer, 0, length);
             return fileBuffer;
-        }
-
-        private void SetData(int offset, byte[] data)
-        {
-            stream.Seek(offset + DataOffset, SeekOrigin.Begin);
-            stream.Write(data, 0, data.Length);
         }
 
         /// <summary>
