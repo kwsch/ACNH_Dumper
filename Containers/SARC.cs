@@ -113,7 +113,7 @@ namespace ACNH_Dumper
             if (path == null)
                 throw new ArgumentNullException(nameof(path));
 
-            folder ??= FileName ?? "sarc";
+            folder ??= FileName;
             string dir = Path.Combine(path, folder);
 
             Directory.CreateDirectory(dir);
@@ -125,7 +125,7 @@ namespace ACNH_Dumper
         {
             stream.Seek(SFNT.StringOffset, SeekOrigin.Begin);
             stream.Seek((offset & 0x00FFFFFF) * 4, SeekOrigin.Current);
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             for (char c = (char)stream.ReadByte(); c != 0; c = (char)stream.ReadByte())
                 sb.Append(c);
 
@@ -136,7 +136,7 @@ namespace ACNH_Dumper
         private byte[] GetData(int offset, int length)
         {
             if (stream == null)
-                throw new ArgumentNullException(nameof(stream));
+                throw new NullReferenceException("Stream not initialized.");
             byte[] fileBuffer = new byte[length];
             stream.Seek(offset + DataOffset, SeekOrigin.Begin);
             stream.Read(fileBuffer, 0, length);
@@ -148,8 +148,8 @@ namespace ACNH_Dumper
         /// </summary>
         public void Dispose()
         {
-            stream?.Dispose();
-            br?.Dispose();
+            stream.Dispose();
+            br.Dispose();
         }
     }
 }
